@@ -100,12 +100,24 @@ class AccountantDatabase(context: Context) :
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createDocumentsTable(db)
         if (oldVersion < 3) {
-            db.execSQL("ALTER TABLE documents ADD COLUMN document_no TEXT NOT NULL DEFAULT ''")
+            if (!hasColumn(db, "documents", "document_no")) {
+                db.execSQL("ALTER TABLE documents ADD COLUMN document_no TEXT NOT NULL DEFAULT ''")
+            }
             db.execSQL("UPDATE documents SET document_no = CASE WHEN kind='SALE' THEN 'SAL-' ELSE 'PUR-' END || printf('%06d', id) WHERE document_no = ''")
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_number ON documents(document_no)")
             createDocumentLinesTable(db)
         }
     }
+
+    private fun hasColumn(db: SQLiteDatabase, table: String, column: String): Boolean =
+        db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            var found = false
+            while (cursor.moveToNext()) {
+                if (nameIndex >= 0 && cursor.getString(nameIndex) == column) found = true
+            }
+            found
+        }
 
     private fun createDocumentLinesTable(db: SQLiteDatabase) {
         db.execSQL(
