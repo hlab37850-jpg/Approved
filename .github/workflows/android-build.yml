@@ -3,8 +3,6 @@ name: Android Cloud Build
 on:
   push:
     branches: [main, "build/**"]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
