@@ -5,51 +5,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.PointOfSale
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -69,14 +35,12 @@ private val Muted = Color(0xFF71808D)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val database = AccountantDatabase(applicationContext)
         setContent {
             MaterialTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = PageBackground
-                ) {
-                    androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                        AccountantHome()
+                Surface(Modifier.fillMaxSize(), color = PageBackground) {
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                        AccountantHome(database)
                     }
                 }
             }
@@ -85,7 +49,6 @@ class MainActivity : ComponentActivity() {
 }
 
 private data class Module(val title: String, val icon: ImageVector, val subtitle: String)
-
 private val modules = listOf(
     Module("الأصناف والمخزون", Icons.Filled.Inventory2, "إدارة الأصناف والكميات"),
     Module("المبيعات", Icons.Filled.PointOfSale, "فواتير وحركة المبيعات"),
@@ -99,11 +62,11 @@ private val modules = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AccountantHome() {
+private fun AccountantHome(database: AccountantDatabase) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedModule by remember { mutableIntStateOf(-1) }
     val tabs = listOf("الرئيسية", "الأصناف", "الحسابات", "التقارير", "المزيد")
-    val tabIcons = listOf(Icons.Filled.AccountBalance, Icons.Filled.Inventory2, Icons.Filled.Groups, Icons.Filled.Assessment, Icons.Filled.MoreHoriz)
+    val tabIcons = listOf(Icons.Filled.Home, Icons.Filled.Inventory2, Icons.Filled.Groups, Icons.Filled.Assessment, Icons.Filled.MoreHoriz)
 
     Scaffold(
         containerColor = PageBackground,
@@ -142,23 +105,17 @@ private fun AccountantHome() {
         ) {
             Spacer(Modifier.height(2.dp))
             if (selectedModule >= 0) {
-                ModuleDetail(modules[selectedModule], onBack = { selectedModule = -1 })
+                ModuleDetail(modules[selectedModule], database, onBack = { selectedModule = -1 })
             } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(when (selectedTab) {
-                            1 -> "الأصناف والمخزون"
-                            2 -> "الحسابات"
-                            3 -> "التقارير"
-                            4 -> "المزيد من الخيارات"
-                            else -> "لوحة التحكم"
-                        }, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
-                        Text("اختر القسم لعرض تفاصيله", fontSize = 12.sp, color = Muted)
-                    }
+                Column {
+                    Text(when (selectedTab) {
+                        1 -> "الأصناف والمخزون"
+                        2 -> "الحسابات"
+                        3 -> "التقارير"
+                        4 -> "المزيد من الخيارات"
+                        else -> "لوحة التحكم"
+                    }, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Text("اختر القسم لعرض تفاصيله", fontSize = 12.sp, color = Muted)
                 }
                 if (selectedTab == 0) {
                     Card(
@@ -168,9 +125,9 @@ private fun AccountantHome() {
                     ) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text("ملخص الحسابات", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                            Text("لا توجد بيانات مسجلة بعد", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp)
-                            Divider(color = Color.White.copy(alpha = 0.28f))
-                            Text("ابدأ بإعداد بيانات المنشأة وإضافة السجلات الفعلية.", color = Color.White, fontSize = 12.sp)
+                            Text("تُحفظ بياناتك محلياً على الجهاز", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp)
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.28f))
+                            Text("أضف العملاء والأصناف من الأقسام المخصصة. لا توجد بيانات تجريبية.", color = Color.White, fontSize = 12.sp)
                         }
                     }
                 }
@@ -188,7 +145,7 @@ private fun AccountantHome() {
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(visibleModules) { module ->
+                    gridItems(visibleModules) { module ->
                         ModuleCard(module) { selectedModule = modules.indexOf(module) }
                     }
                 }
@@ -205,16 +162,11 @@ private fun ModuleCard(module: Module, onClick: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(13.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
+        Column(Modifier.fillMaxSize().padding(13.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Box(
                 modifier = Modifier.size(40.dp).background(Color(0xFFE6F2F9), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
-            ) {
-                Icon(module.icon, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(23.dp))
-            }
+            ) { Icon(module.icon, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(23.dp)) }
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(module.title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Text(module.subtitle, color = Muted, fontSize = 10.sp, maxLines = 1)
@@ -224,26 +176,134 @@ private fun ModuleCard(module: Module, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ModuleDetail(module: Module, onBack: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text("رجوع إلى الأقسام", color = BrandBlue, fontSize = 13.sp, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 8.dp))
+private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: () -> Unit) {
+    var refresh by remember { mutableIntStateOf(0) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var companyName by remember { mutableStateOf(database.companyName()) }
+    val isCustomers = module.title == "العملاء"
+    val isItems = module.title == "الأصناف والمخزون"
+    val records = remember(module.title, refresh) {
+        when {
+            isCustomers -> database.listCustomers()
+            isItems -> database.listItems()
+            else -> emptyList()
+        }
+    }
+
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("رجوع إلى الأقسام", color = BrandBlue, fontSize = 13.sp,
+            modifier = Modifier.clickable(onClick = onBack).padding(vertical = 5.dp))
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
-            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(module.icon, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(34.dp))
-                Column {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(module.icon, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(32.dp))
+                Column(Modifier.weight(1f)) {
                     Text(module.title, fontWeight = FontWeight.Bold, color = Ink, fontSize = 18.sp)
                     Text(module.subtitle, color = Muted, fontSize = 12.sp)
                 }
+                if (isCustomers || isItems) {
+                    FilledTonalButton(onClick = { showAddDialog = true }) {
+                        Icon(Icons.Filled.Add, contentDescription = null)
+                        Text("إضافة")
+                    }
+                }
             }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
-            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("لا توجد سجلات", fontWeight = FontWeight.SemiBold, color = Ink)
-                Text("هذه الشاشة هي نقطة بداية للربط بالوظائف وقاعدة البيانات. لم تتم إضافة سجلات تجريبية.", color = Muted, fontSize = 13.sp)
+
+        when {
+            isCustomers || isItems -> {
+                if (records.isEmpty()) {
+                    EmptyState(if (isCustomers) "لا يوجد عملاء بعد" else "لا توجد أصناف بعد",
+                        "اضغط «إضافة» لتسجيل أول سجل. البيانات تحفظ في قاعدة SQLite على جهازك.")
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
+                        items(records, key = { it.id }) { record ->
+                            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+                                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(record.name, color = Ink, fontWeight = FontWeight.SemiBold)
+                                        Text(if (isCustomers) record.detail else "رمز: ${record.detail.ifBlank { "—" }}  •  الكمية: ${record.quantity}",
+                                            color = Muted, fontSize = 12.sp)
+                                    }
+                                    IconButton(onClick = {
+                                        database.deleteRecord(if (isCustomers) "customers" else "items", record.id)
+                                        refresh++
+                                    }) { Icon(Icons.Filled.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFB3261E)) }
+                                }
+                            }
+                        }
+                    }
+                }
             }
+            module.title == "الإعدادات" -> {
+                var editName by remember { mutableStateOf(companyName) }
+                Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("بيانات المنشأة", fontWeight = FontWeight.Bold, color = Ink)
+                        OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("اسم المنشأة") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Button(onClick = {
+                            database.saveCompanyName(editName)
+                            companyName = database.companyName()
+                        }, modifier = Modifier.fillMaxWidth()) { Text("حفظ البيانات") }
+                        if (companyName.isNotBlank()) Text("الاسم المحفوظ: $companyName", color = Muted, fontSize = 12.sp)
+                    }
+                }
+                Text("قاعدة البيانات: SQLite محلية • لا يتم إنشاء بيانات افتراضية", color = Muted, fontSize = 12.sp)
+            }
+            else -> EmptyState("القسم قيد التطوير", "لم تُنفذ وظيفة هذا القسم بعد. لن نعرض بيانات وهمية أو نعتبره مكتملًا.")
         }
     }
+
+    if (showAddDialog) {
+        RecordDialog(
+            title = if (isCustomers) "إضافة عميل" else "إضافة صنف",
+            customer = isCustomers,
+            onDismiss = { showAddDialog = false },
+            onSave = { name, detail, quantity ->
+                if (name.isNotBlank()) {
+                    if (isCustomers) database.addCustomer(name, detail)
+                    else database.addItem(name, detail, quantity)
+                    refresh++
+                    showAddDialog = false
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun EmptyState(title: String, description: String) {
+    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(Icons.Filled.Inventory2, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(32.dp))
+            Text(title, fontWeight = FontWeight.SemiBold, color = Ink)
+            Text(description, color = Muted, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun RecordDialog(
+    title: String,
+    customer: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String, String, Double) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var detail by remember { mutableStateOf("") }
+    var quantity by remember { mutableStateOf("0") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(if (customer) "اسم العميل *" else "اسم الصنف *") }, singleLine = true)
+                OutlinedTextField(value = detail, onValueChange = { detail = it }, label = { Text(if (customer) "رقم الهاتف" else "رمز الصنف / SKU") }, singleLine = true)
+                if (!customer) OutlinedTextField(value = quantity, onValueChange = { quantity = it }, label = { Text("الكمية") }, singleLine = true)
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(name, detail, quantity.toDoubleOrNull() ?: 0.0) }, enabled = name.isNotBlank()) { Text("حفظ") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
+    )
 }
