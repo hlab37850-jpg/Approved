@@ -266,6 +266,7 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
                             Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
                                 Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(doc.documentNo, color = BrandBlue, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
                                         Text(doc.partyName, color = Ink, fontWeight = FontWeight.SemiBold)
                                         Text("المبلغ: ${doc.amount} ر.ي • ${DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(doc.createdAt))}",
                                             color = Muted, fontSize = 12.sp)
