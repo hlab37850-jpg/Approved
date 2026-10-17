@@ -12,6 +12,15 @@ data class LedgerRecord(
     val quantity: Double = 0.0
 )
 
+data class DocumentTotals(val count: Int, val total: Double)
+
+data class FinancialSummary(
+    val allSales: DocumentTotals,
+    val allPurchases: DocumentTotals,
+    val monthSales: DocumentTotals,
+    val monthPurchases: DocumentTotals
+)
+
 data class BusinessDocument(
     val id: Long,
     val kind: String,
@@ -139,6 +148,27 @@ class AccountantDatabase(context: Context) :
                 }
             }
         }
+    }
+
+    fun financialSummary(monthStart: Long): FinancialSummary {
+        fun totals(kind: String, since: Long? = null): DocumentTotals {
+            val sql = if (since == null) {
+                "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM documents WHERE kind=?"
+            } else {
+                "SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM documents WHERE kind=? AND created_at>=?"
+            }
+            val args = if (since == null) arrayOf(kind) else arrayOf(kind, since.toString())
+            return readableDatabase.rawQuery(sql, args).use { cursor ->
+                if (cursor.moveToFirst()) DocumentTotals(cursor.getInt(0), cursor.getDouble(1))
+                else DocumentTotals(0, 0.0)
+            }
+        }
+        return FinancialSummary(
+            allSales = totals("SALE"),
+            allPurchases = totals("PURCHASE"),
+            monthSales = totals("SALE", monthStart),
+            monthPurchases = totals("PURCHASE", monthStart)
+        )
     }
 
     fun addDocument(kind: String, partyName: String, amount: Double, notes: String) {
