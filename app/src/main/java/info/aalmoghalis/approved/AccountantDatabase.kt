@@ -400,6 +400,15 @@ class AccountantDatabase(context: Context) :
                         arrayOf(name)
                     ).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null }
                     if (itemId != null) {
+                        val current = db.rawQuery(
+                            "SELECT quantity FROM items WHERE id=?",
+                            arrayOf(itemId.toString())
+                        ).use { cursor -> if (cursor.moveToFirst()) cursor.getDouble(0) else 0.0 }
+                        if (doc.first == "PURCHASE") {
+                            check(current + 1e-9 >= quantity) {
+                                "لا يمكن حذف مستند الشراء لأن جزءًا من الكمية تم بيعه أو صرفه. راجع حركات المخزون أولاً."
+                            }
+                        }
                         val delta = if (doc.first == "SALE") quantity else -quantity
                         db.execSQL("UPDATE items SET quantity=quantity+? WHERE id=?", arrayOf(delta, itemId))
                     }
