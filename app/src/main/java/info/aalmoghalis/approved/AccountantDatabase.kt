@@ -12,7 +12,7 @@ data class LedgerRecord(
     val quantity: Double = 0.0
 )
 
-data class DocumentTotals(val count: Int, val total: Double)
+data class DocumentLineDraft(val itemName: String, val quantity: Double, val unitPrice: Double)\n\ndata class DocumentLine(\n    val id: Long,\n    val documentId: Long,\n    val itemName: String,\n    val quantity: Double,\n    val unitPrice: Double,\n    val lineTotal: Double\n)\n\ndata class DocumentTotals(val count: Int, val total: Double)
 
 data class FinancialSummary(
     val allSales: DocumentTotals,
@@ -34,7 +34,7 @@ data class BusinessDocument(
 class AccountantDatabase(context: Context) :
     SQLiteOpenHelper(context, "approved_accounting.db", null, 3) {
 
-    override fun onCreate(db: SQLiteDatabase) {
+    override fun onConfigure(db: SQLiteDatabase) {\n        super.onConfigure(db)\n        db.setForeignKeyConstraintsEnabled(true)\n    }\n\n    override fun onCreate(db: SQLiteDatabase) {
         createBaseTables(db)
         createDocumentsTable(db)
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_number ON documents(document_no)")
@@ -217,6 +217,75 @@ class AccountantDatabase(context: Context) :
             monthPurchases = totals("PURCHASE", monthStart)
         )
     }
+
+    fun addDocumentWithLines(
+        kind: String,
+        partyName: String,
+        notes: String,
+        lines: List<DocumentLineDraft>
+    ) {
+        require(kind == "SALE" || kind == "PURCHASE")
+        require(partyName.isNotBlank() && lines.isNotEmpty())
+        require(lines.all {
+            it.itemName.isNotBlank() && it.quantity.isFinite() && it.quantity > 0.0 &&
+                it.unitPrice.isFinite() && it.unitPrice >= 0.0 &&
+                (it.quantity * it.unitPrice).isFinite()
+        })
+        val total = lines.sumOf { it.quantity * it.unitPrice }
+        require(total.isFinite() && total >= 0.0)
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val values = ContentValues().apply {
+                put("document_no", "")
+                put("kind", kind)
+                put("party_name", partyName.trim())
+                put("amount", total)
+                put("notes", notes.trim())
+                put("created_at", System.currentTimeMillis())
+            }
+            val id = db.insertOrThrow("documents", null, values)
+            lines.forEach { line ->
+                val lineValues = ContentValues().apply {
+                    put("document_id", id)
+                    put("item_name", line.itemName.trim())
+                    put("quantity", line.quantity)
+                    put("unit_price", line.unitPrice)
+                    put("line_total", line.quantity * line.unitPrice)
+                }
+                db.insertOrThrow("document_lines", null, lineValues)
+            }
+            val prefix = if (kind == "SALE") "SAL-" else "PUR-"
+            db.execSQL(
+                "UPDATE documents SET document_no=? WHERE id=?",
+                arrayOf(prefix + id.toString().padStart(6, '0'), id)
+            )
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun listDocumentLines(documentId: Long): List<DocumentLine> =
+        readableDatabase.rawQuery(
+            "SELECT id, document_id, item_name, quantity, unit_price, line_total FROM document_lines WHERE document_id=? ORDER BY id",
+            arrayOf(documentId.toString())
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    add(
+                        DocumentLine(
+                            cursor.getLong(0),
+                            cursor.getLong(1),
+                            cursor.getString(2),
+                            cursor.getDouble(3),
+                            cursor.getDouble(4),
+                            cursor.getDouble(5)
+                        )
+                    )
+                }
+            }
+        }
 
     fun addDocument(kind: String, partyName: String, amount: Double, notes: String) {
         require(kind == "SALE" || kind == "PURCHASE")
