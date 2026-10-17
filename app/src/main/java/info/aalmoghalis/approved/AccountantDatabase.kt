@@ -359,6 +359,21 @@ class AccountantDatabase(context: Context) :
         require(table == "customers" || table == "items" || table == "documents") { "Unsupported table" }
         val db = writableDatabase
         if (table != "documents") {
+            if (table == "items") {
+                val itemName = db.rawQuery("SELECT name FROM items WHERE id=?", arrayOf(id.toString()))
+                    .use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+                if (itemName != null) {
+                    val referenced = db.rawQuery(
+                        """SELECT COUNT(*) FROM document_lines l
+                           INNER JOIN documents d ON d.id=l.document_id
+                           WHERE d.stock_posted=1 AND l.item_name=? COLLATE NOCASE""".trimIndent(),
+                        arrayOf(itemName)
+                    ).use { cursor -> cursor.moveToFirst() && cursor.getInt(0) > 0 }
+                    check(!referenced) {
+                        "لا يمكن حذف هذا الصنف لأنه مرتبط بمستندات مرحّلة للمخزون. احذف المستندات المرتبطة أولاً."
+                    }
+                }
+            }
             db.delete(table, "id = ?", arrayOf(id.toString()))
             return
         }
