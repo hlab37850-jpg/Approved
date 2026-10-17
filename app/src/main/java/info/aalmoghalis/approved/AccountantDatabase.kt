@@ -12,12 +12,26 @@ data class LedgerRecord(
     val quantity: Double = 0.0
 )
 
+data class BusinessDocument(
+    val id: Long,
+    val kind: String,
+    val partyName: String,
+    val amount: Double,
+    val notes: String,
+    val createdAt: Long
+)
+
 class AccountantDatabase(context: Context) :
-    SQLiteOpenHelper(context, "approved_accounting.db", null, 1) {
+    SQLiteOpenHelper(context, "approved_accounting.db", null, 2) {
 
     override fun onCreate(db: SQLiteDatabase) {
+        createBaseTables(db)
+        createDocumentsTable(db)
+    }
+
+    private fun createBaseTables(db: SQLiteDatabase) {
         db.execSQL(
-            """CREATE TABLE customers (
+            """CREATE TABLE IF NOT EXISTS customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 phone TEXT NOT NULL DEFAULT '',
@@ -26,7 +40,7 @@ class AccountantDatabase(context: Context) :
             )""".trimIndent()
         )
         db.execSQL(
-            """CREATE TABLE items (
+            """CREATE TABLE IF NOT EXISTS items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 sku TEXT NOT NULL DEFAULT '',
@@ -35,7 +49,7 @@ class AccountantDatabase(context: Context) :
             )""".trimIndent()
         )
         db.execSQL(
-            """CREATE TABLE company_settings (
+            """CREATE TABLE IF NOT EXISTS company_settings (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 company_name TEXT NOT NULL DEFAULT '',
                 phone TEXT NOT NULL DEFAULT '',
@@ -43,11 +57,25 @@ class AccountantDatabase(context: Context) :
                 currency TEXT NOT NULL DEFAULT 'ر.ي'
             )""".trimIndent()
         )
-        db.execSQL("INSERT INTO company_settings (id) VALUES (1)")
+        db.execSQL("INSERT OR IGNORE INTO company_settings (id) VALUES (1)")
+    }
+
+    private fun createDocumentsTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind TEXT NOT NULL CHECK(kind IN ('SALE','PURCHASE')),
+                party_name TEXT NOT NULL,
+                amount REAL NOT NULL CHECK(amount >= 0),
+                notes TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL
+            )""".trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_documents_kind_date ON documents(kind, created_at DESC)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Future schema changes must use explicit migrations; user data is never dropped.
+        if (oldVersion < 2) createDocumentsTable(db)
     }
 
     fun listCustomers(): List<LedgerRecord> = readableDatabase.rawQuery(
@@ -90,8 +118,44 @@ class AccountantDatabase(context: Context) :
         writableDatabase.insertOrThrow("items", null, values)
     }
 
+    fun listDocuments(kind: String): List<BusinessDocument> {
+        require(kind == "SALE" || kind == "PURCHASE")
+        return readableDatabase.rawQuery(
+            "SELECT id, kind, party_name, amount, notes, created_at FROM documents WHERE kind=? ORDER BY created_at DESC, id DESC",
+            arrayOf(kind)
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    add(
+                        BusinessDocument(
+                            cursor.getLong(0),
+                            cursor.getString(1),
+                            cursor.getString(2),
+                            cursor.getDouble(3),
+                            cursor.getString(4),
+                            cursor.getLong(5)
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun addDocument(kind: String, partyName: String, amount: Double, notes: String) {
+        require(kind == "SALE" || kind == "PURCHASE")
+        require(partyName.isNotBlank() && amount >= 0.0 && amount.isFinite())
+        val values = ContentValues().apply {
+            put("kind", kind)
+            put("party_name", partyName.trim())
+            put("amount", amount)
+            put("notes", notes.trim())
+            put("created_at", System.currentTimeMillis())
+        }
+        writableDatabase.insertOrThrow("documents", null, values)
+    }
+
     fun deleteRecord(table: String, id: Long) {
-        require(table == "customers" || table == "items") { "Unsupported table" }
+        require(table == "customers" || table == "items" || table == "documents") { "Unsupported table" }
         writableDatabase.delete(table, "id = ?", arrayOf(id.toString()))
     }
 
