@@ -25,6 +25,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.DateFormat
+import java.util.Date
 
 private val BrandBlue = Color(0xFF0A6EA9)
 private val BrandBlueDark = Color(0xFF1B5088)
@@ -51,8 +53,8 @@ class MainActivity : ComponentActivity() {
 private data class Module(val title: String, val icon: ImageVector, val subtitle: String)
 private val modules = listOf(
     Module("الأصناف والمخزون", Icons.Filled.Inventory2, "إدارة الأصناف والكميات"),
-    Module("المبيعات", Icons.Filled.PointOfSale, "فواتير وحركة المبيعات"),
-    Module("المشتريات", Icons.Filled.ShoppingCart, "فواتير وحركة المشتريات"),
+    Module("المبيعات", Icons.Filled.PointOfSale, "سجل مستندات المبيعات"),
+    Module("المشتريات", Icons.Filled.ShoppingCart, "سجل مستندات المشتريات"),
     Module("العملاء", Icons.Filled.Groups, "حسابات وأرصدة العملاء"),
     Module("المجموعات", Icons.Filled.Category, "تصنيف الأصناف والحسابات"),
     Module("الحسابات", Icons.Filled.AccountBalance, "دليل الحسابات والأرصدة"),
@@ -127,7 +129,7 @@ private fun AccountantHome(database: AccountantDatabase) {
                             Text("ملخص الحسابات", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                             Text("تُحفظ بياناتك محلياً على الجهاز", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp)
                             HorizontalDivider(color = Color.White.copy(alpha = 0.28f))
-                            Text("أضف العملاء والأصناف من الأقسام المخصصة. لا توجد بيانات تجريبية.", color = Color.White, fontSize = 12.sp)
+                            Text("لا توجد بيانات تجريبية. سجلات المستندات لا تنشئ قيوداً محاسبية تلقائية.", color = Color.White, fontSize = 12.sp)
                         }
                     }
                 }
@@ -182,12 +184,18 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
     var companyName by remember { mutableStateOf(database.companyName()) }
     val isCustomers = module.title == "العملاء"
     val isItems = module.title == "الأصناف والمخزون"
+    val isSales = module.title == "المبيعات"
+    val isPurchases = module.title == "المشتريات"
+    val documentKind = if (isSales) "SALE" else "PURCHASE"
     val records = remember(module.title, refresh) {
         when {
             isCustomers -> database.listCustomers()
             isItems -> database.listItems()
             else -> emptyList()
         }
+    }
+    val documents = remember(module.title, refresh) {
+        if (isSales || isPurchases) database.listDocuments(documentKind) else emptyList()
     }
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -201,7 +209,7 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
                     Text(module.title, fontWeight = FontWeight.Bold, color = Ink, fontSize = 18.sp)
                     Text(module.subtitle, color = Muted, fontSize = 12.sp)
                 }
-                if (isCustomers || isItems) {
+                if (isCustomers || isItems || isSales || isPurchases) {
                     FilledTonalButton(onClick = { showAddDialog = true }) {
                         Icon(Icons.Filled.Add, contentDescription = null)
                         Text("إضافة")
@@ -235,6 +243,30 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
                     }
                 }
             }
+            isSales || isPurchases -> {
+                if (documents.isEmpty()) {
+                    EmptyState(if (isSales) "لا توجد مستندات مبيعات" else "لا توجد مستندات مشتريات",
+                        "أضف سجل المستند لتخزين الطرف والمبلغ والملاحظات. لا ينشئ هذا السجل قيداً محاسبياً أو يغيّر المخزون.")
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
+                        items(documents, key = { it.id }) { doc ->
+                            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+                                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(doc.partyName, color = Ink, fontWeight = FontWeight.SemiBold)
+                                        Text("المبلغ: ${doc.amount} ر.ي • ${DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(doc.createdAt))}",
+                                            color = Muted, fontSize = 12.sp)
+                                        if (doc.notes.isNotBlank()) Text(doc.notes, color = Muted, fontSize = 12.sp)
+                                    }
+                                    IconButton(onClick = { database.deleteRecord("documents", doc.id); refresh++ }) {
+                                        Icon(Icons.Filled.DeleteOutline, contentDescription = "حذف المستند", tint = Color(0xFFB3261E))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             module.title == "الإعدادات" -> {
                 var editName by remember { mutableStateOf(companyName) }
                 Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
@@ -254,7 +286,7 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
         }
     }
 
-    if (showAddDialog) {
+    if (showAddDialog && (isCustomers || isItems)) {
         RecordDialog(
             title = if (isCustomers) "إضافة عميل" else "إضافة صنف",
             customer = isCustomers,
@@ -266,6 +298,17 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
                     refresh++
                     showAddDialog = false
                 }
+            }
+        )
+    }
+    if (showAddDialog && (isSales || isPurchases)) {
+        DocumentDialog(
+            title = if (isSales) "إضافة مستند مبيعات" else "إضافة مستند مشتريات",
+            onDismiss = { showAddDialog = false },
+            onSave = { party, amount, notes ->
+                database.addDocument(documentKind, party, amount, notes)
+                refresh++
+                showAddDialog = false
             }
         )
     }
@@ -304,6 +347,44 @@ private fun RecordDialog(
             }
         },
         confirmButton = { TextButton(onClick = { onSave(name, detail, quantity.toDoubleOrNull() ?: 0.0) }, enabled = name.isNotBlank()) { Text("حفظ") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
+    )
+}
+
+@Composable
+private fun DocumentDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    onSave: (String, Double, String) -> Unit
+) {
+    var party by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+    val parsedAmount = amount.trim().replace(',', '.').toDoubleOrNull()
+    val valid = party.isNotBlank() && parsedAmount != null && parsedAmount.isFinite() && parsedAmount >= 0.0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = party, onValueChange = { party = it },
+                    label = { Text("اسم العميل أو المورد *") }, singleLine = true
+                )
+                OutlinedTextField(
+                    value = amount, onValueChange = { amount = it },
+                    label = { Text("المبلغ (ر.ي) *") }, singleLine = true
+                )
+                OutlinedTextField(
+                    value = notes, onValueChange = { notes = it },
+                    label = { Text("ملاحظات") }, minLines = 2
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { if (valid) onSave(party, parsedAmount!!, notes) }, enabled = valid) { Text("حفظ") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
     )
 }
