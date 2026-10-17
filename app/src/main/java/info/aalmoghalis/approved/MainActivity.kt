@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.text.DateFormat
 import java.util.Date
+import java.util.Calendar
+import java.util.Locale
 
 private val BrandBlue = Color(0xFF0A6EA9)
 private val BrandBlueDark = Color(0xFF1B5088)
@@ -186,6 +188,7 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
     val isItems = module.title == "الأصناف والمخزون"
     val isSales = module.title == "المبيعات"
     val isPurchases = module.title == "المشتريات"
+    val isReports = module.title == "التقارير"
     val documentKind = if (isSales) "SALE" else "PURCHASE"
     val records = remember(module.title, refresh) {
         when {
@@ -196,6 +199,16 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
     }
     val documents = remember(module.title, refresh) {
         if (isSales || isPurchases) database.listDocuments(documentKind) else emptyList()
+    }
+    val summary = remember(module.title, refresh) {
+        val monthStart = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        database.financialSummary(monthStart)
     }
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -267,6 +280,43 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
                     }
                 }
             }
+            isReports -> {
+                val money: (Double) -> String = { value -> String.format(Locale.US, "%,.2f ر.ي", value) }
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(bottom = 18.dp)
+                ) {
+                    item {
+                        Text("ملخص هذا الشهر", color = Ink, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+                    item {
+                        SummaryMetricCard("إجمالي المبيعات هذا الشهر", money(summary.monthSales.total),
+                            "عدد السجلات: ${summary.monthSales.count}", Icons.Filled.TrendingUp)
+                    }
+                    item {
+                        SummaryMetricCard("إجمالي المشتريات هذا الشهر", money(summary.monthPurchases.total),
+                            "عدد السجلات: ${summary.monthPurchases.count}", Icons.Filled.ShoppingCart)
+                    }
+                    item {
+                        SummaryMetricCard("إجمالي المبيعات منذ البداية", money(summary.allSales.total),
+                            "عدد السجلات: ${summary.allSales.count}", Icons.Filled.PointOfSale)
+                    }
+                    item {
+                        SummaryMetricCard("إجمالي المشتريات منذ البداية", money(summary.allPurchases.total),
+                            "عدد السجلات: ${summary.allPurchases.count}", Icons.Filled.ReceiptLong)
+                    }
+                    item {
+                        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE6F2F9)),
+                            shape = RoundedCornerShape(12.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("تنبيه محاسبي", color = BrandBlueDark, fontWeight = FontWeight.Bold)
+                                Text("هذه المجاميع محسوبة من سجلات المستندات المحفوظة فعلياً على الجهاز. الفرق بين المبيعات والمشتريات ليس ربحاً محاسبياً؛ إذ لم تُنفذ بعد تكلفة البضاعة والمصروفات والقيود المحاسبية.", color = Ink, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
             module.title == "الإعدادات" -> {
                 var editName by remember { mutableStateOf(companyName) }
                 Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(14.dp)) {
@@ -311,6 +361,32 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
                 showAddDialog = false
             }
         )
+    }
+}
+
+@Composable
+private fun SummaryMetricCard(title: String, value: String, detail: String, icon: ImageVector) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(15.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier.size(42.dp).background(Color(0xFFE6F2F9), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(23.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, color = Muted, fontSize = 12.sp)
+                Text(value, color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(detail, color = Muted, fontSize = 11.sp)
+            }
+        }
     }
 }
 
