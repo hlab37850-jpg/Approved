@@ -18,11 +18,12 @@ Reference: https://github.com/hlab37850-jpg/almahaseb-pro-apk-analysis
 - Inventory items: add, list and delete, including SKU and quantity fields.
 - Company name setting: save locally.
 - Sales and purchase document registers: save, list and delete party name, amount, notes and timestamp.
+- Reports screen calculates sales/purchase totals and record counts for the current month and all saved history directly from SQLite.
 - Empty states explain missing data; the app does not seed sample business records.
 
 ## Important limits
 - Sales/purchase records are currently registers only. They do not generate journal entries, update customer/vendor balances, deduct/add stock, or represent a complete tax invoice workflow.
-- General ledger, accounts tree, customer statements, full reports, backups, barcode, printing, imports and all source navigation remain unfinished.
+- General ledger, accounts tree, customer statements, profit calculation, backups, barcode, printing, imports and all source navigation remain unfinished. The reports screen is a real summary of document registers, not a complete financial reporting system.
 - The Compose screen is not yet a pixel-perfect reconstruction of every source screen; no matching screenshot set was supplied for pixel comparison.
 
 ## Next work
