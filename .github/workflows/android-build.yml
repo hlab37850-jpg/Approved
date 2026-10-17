@@ -30,7 +30,7 @@ jobs:
           test -f app/build.gradle.kts
           test -f app/src/main/AndroidManifest.xml
       - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+        run: gradle --no-daemon testDebugUnitTest assembleDebug
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
