@@ -3,25 +3,31 @@
 Reference: https://github.com/hlab37850-jpg/almahaseb-pro-apk-analysis
 
 ## Confirmed from the decompiled repository
-- Android native application package in manifest: `info.aalmoghalis.inventory`.
-- Manifest version: `Inv1.170`; min SDK 21, target SDK 35, compile SDK 35.
+- Android native application package: `info.aalmoghalis.inventory`; manifest version `Inv1.170`.
+- min SDK 21, target SDK 35, compile SDK 35.
 - Launcher activity: `info.aalmoghalis.inventory.activity.FragmentStatePagerSupport_Main`.
-- The launcher activity uses an AndroidX `Toolbar`, `DrawerLayout`, `ListView`, `ViewPager`, and SQLite database access.
-- Reference resource colors include `colorPrimary #0a6ea9`, `colorPrimaryDark #1b5088`, and `colorAccent #ff4081`.
-- The main layout uses a CoordinatorLayout, AppBarLayout, Toolbar and a floating action button.
-- Resources include icons for inventory/items, purchases, sales, reports, accounts, settings, backup/restore, barcode, PDF, Excel, printing, and messaging.
-- The decompiled tree contains many application activities for customer/item details, transactions, reports, settings, printing, and account trees.
+- The launcher uses an AndroidX `Toolbar`, `DrawerLayout`, `ListView`, `ViewPager`, and SQLite access.
+- Verified colors: `colorPrimary #0a6ea9`, `colorPrimaryDark #1b5088`, and `colorAccent #ff4081`.
+- Main layout uses CoordinatorLayout, AppBarLayout, Toolbar and a floating action button.
+- Resource inventory includes customers, item details, transaction screens, reports, settings, printing, barcode, PDF/Excel, backup/restore, messaging, sales and purchases.
 
-## Current implementation status
-The new project uses Kotlin and Jetpack Compose as a maintainable native Android UI foundation. The first pass uses the verified primary color values and RTL Arabic UI. Local SQLite tables now exist for customers, inventory items, and company settings. The UI supports adding/listing/deleting customer and item records and saving the company name. The data is stored on-device and no sample records are seeded.
+## Implemented in Approved
+- Kotlin + Jetpack Compose Arabic RTL foundation, using the verified primary colors.
+- SQLite database with versioned schema and a non-destructive migration adding the documents table.
+- Customer records: add, list and delete.
+- Inventory items: add, list and delete, including SKU and quantity fields.
+- Company name setting: save locally.
+- Sales and purchase document registers: save, list and delete party name, amount, notes and timestamp.
+- Empty states explain missing data; the app does not seed sample business records.
 
-This remains a functional foundation, not a pixel-perfect reconstruction of every reference screen. Sales, purchases, ledger transactions, reporting, backups, barcode, printing, and complete reference navigation are not implemented yet.
+## Important limits
+- Sales/purchase records are currently registers only. They do not generate journal entries, update customer/vendor balances, deduct/add stock, or represent a complete tax invoice workflow.
+- General ledger, accounts tree, customer statements, full reports, backups, barcode, printing, imports and all source navigation remain unfinished.
+- The Compose screen is not yet a pixel-perfect reconstruction of every source screen; no matching screenshot set was supplied for pixel comparison.
 
-## Remaining work
-1. Inspect the main activity's navigation/page setup and relevant app-owned resource definitions.
-2. Build a screen inventory covering every declared app activity and navigation entry.
-3. Reimplement the toolbar, drawer, tabs/pages, and screen-specific controls based on source evidence.
-4. Recover/recreate suitable app-owned icons where legally and technically appropriate.
-5. Implement validated accounting workflows and database relations/migrations before enabling transaction features.
-6. Compare screenshots against reference screenshots if available.
-7. Verify the latest cloud build and APK artifact from GitHub Actions.
+## Next work
+1. Verify the latest GitHub Actions build and APK artifact.
+2. Map source navigation and app-owned layouts/screens systematically.
+3. Implement transaction line items, document numbering, totals and validation.
+4. Implement accounting posting rules only after defining and testing the double-entry model.
+5. Add tests for database migration, record persistence and financial validation.
