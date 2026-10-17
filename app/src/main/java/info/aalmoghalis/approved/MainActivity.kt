@@ -272,6 +272,13 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
                                         Text(doc.partyName, color = Ink, fontWeight = FontWeight.SemiBold)
                                         Text("المبلغ: ${doc.amount} ر.ي • ${DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(doc.createdAt))}",
                                             color = Muted, fontSize = 12.sp)
+                                        val lineDetails = remember(doc.id, refresh) { database.listDocumentLines(doc.id) }
+                                        lineDetails.forEach { line ->
+                                            Text(
+                                                "${line.itemName} • ${line.quantity} × ${String.format(Locale.US, "%,.2f", line.unitPrice)} = ${String.format(Locale.US, "%,.2f", line.lineTotal)}",
+                                                color = Muted, fontSize = 11.sp
+                                            )
+                                        }
                                         if (doc.notes.isNotBlank()) Text(doc.notes, color = Muted, fontSize = 12.sp)
                                     }
                                     IconButton(onClick = { database.deleteRecord("documents", doc.id); refresh++ }) {
