@@ -12,7 +12,18 @@ data class LedgerRecord(
     val quantity: Double = 0.0
 )
 
-data class DocumentLineDraft(val itemName: String, val quantity: Double, val unitPrice: Double)\n\ndata class DocumentLine(\n    val id: Long,\n    val documentId: Long,\n    val itemName: String,\n    val quantity: Double,\n    val unitPrice: Double,\n    val lineTotal: Double\n)\n\ndata class DocumentTotals(val count: Int, val total: Double)
+data class DocumentLineDraft(val itemName: String, val quantity: Double, val unitPrice: Double)
+
+data class DocumentLine(
+    val id: Long,
+    val documentId: Long,
+    val itemName: String,
+    val quantity: Double,
+    val unitPrice: Double,
+    val lineTotal: Double
+)
+
+data class DocumentTotals(val count: Int, val total: Double)
 
 data class FinancialSummary(
     val allSales: DocumentTotals,
@@ -34,7 +45,12 @@ data class BusinessDocument(
 class AccountantDatabase(context: Context) :
     SQLiteOpenHelper(context, "approved_accounting.db", null, 3) {
 
-    override fun onConfigure(db: SQLiteDatabase) {\n        super.onConfigure(db)\n        db.setForeignKeyConstraintsEnabled(true)\n    }\n\n    override fun onCreate(db: SQLiteDatabase) {
+    override fun onConfigure(db: SQLiteDatabase) {
+        super.onConfigure(db)
+        db.setForeignKeyConstraintsEnabled(true)
+    }
+
+    override fun onCreate(db: SQLiteDatabase) {
         createBaseTables(db)
         createDocumentsTable(db)
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_number ON documents(document_no)")
