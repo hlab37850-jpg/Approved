@@ -184,6 +184,7 @@ private fun ModuleCard(module: Module, onClick: () -> Unit) {
 @Composable
 private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: () -> Unit) {
     var refresh by remember { mutableIntStateOf(0) }
+    var operationError by remember { mutableStateOf<String?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     var companyName by remember { mutableStateOf(database.companyName()) }
     val isCustomers = module.title == "العملاء"
@@ -249,8 +250,11 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
                                             color = Muted, fontSize = 12.sp)
                                     }
                                     IconButton(onClick = {
-                                        database.deleteRecord(if (isCustomers) "customers" else "items", record.id)
-                                        refresh++
+                                        val failure = runCatching {
+                                            database.deleteRecord(if (isCustomers) "customers" else "items", record.id)
+                                        }.exceptionOrNull()
+                                        if (failure == null) refresh++
+                                        else operationError = failure.message ?: "تعذر حذف السجل."
                                     }) { Icon(Icons.Filled.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFB3261E)) }
                                 }
                             }
@@ -359,6 +363,14 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
                     showAddDialog = false
                 }
             }
+        )
+    }
+    if (operationError != null) {
+        AlertDialog(
+            onDismissRequest = { operationError = null },
+            title = { Text("تعذر تنفيذ العملية") },
+            text = { Text(operationError.orEmpty()) },
+            confirmButton = { TextButton(onClick = { operationError = null }) { Text("حسنًا") } }
         )
     }
     if (showAddDialog && (isSales || isPurchases)) {
