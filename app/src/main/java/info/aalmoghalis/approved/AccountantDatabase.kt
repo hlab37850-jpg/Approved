@@ -37,6 +37,7 @@ class AccountantDatabase(context: Context) :
     override fun onCreate(db: SQLiteDatabase) {
         createBaseTables(db)
         createDocumentsTable(db)
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_number ON documents(document_no)")
     }
 
     private fun createBaseTables(db: SQLiteDatabase) {
@@ -83,7 +84,6 @@ class AccountantDatabase(context: Context) :
             )""".trimIndent()
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_documents_kind_date ON documents(kind, created_at DESC)")
-        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_number ON documents(document_no)")
         db.execSQL(
             """CREATE TABLE IF NOT EXISTS document_lines (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
