@@ -366,9 +366,16 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
             title = if (isSales) "إضافة مستند مبيعات" else "إضافة مستند مشتريات",
             onDismiss = { showAddDialog = false },
             onSave = { party, notes, lines ->
-                database.addDocumentWithLines(documentKind, party, notes, lines)
-                refresh++
-                showAddDialog = false
+                val failure = runCatching {
+                    database.addDocumentWithLines(documentKind, party, notes, lines)
+                }.exceptionOrNull()
+                if (failure == null) {
+                    refresh++
+                    showAddDialog = false
+                    null
+                } else {
+                    failure.message ?: "تعذر حفظ المستند. تحقق من البيانات والمخزون."
+                }
             }
         )
     }
@@ -447,9 +454,10 @@ private data class EditableDocumentLine(
 private fun DocumentDialog(
     title: String,
     onDismiss: () -> Unit,
-    onSave: (String, String, List<DocumentLineDraft>) -> Unit
+    onSave: (String, String, List<DocumentLineDraft>) -> String?
 ) {
     var party by remember { mutableStateOf("") }
+    var saveError by remember { mutableStateOf<String?>(null) }
     var notes by remember { mutableStateOf("") }
     val lines = remember { mutableStateListOf(EditableDocumentLine()) }
     val parsedLines = lines.mapNotNull { line ->
@@ -479,6 +487,7 @@ private fun DocumentDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text("بنود المستند", color = Ink, fontWeight = FontWeight.SemiBold)
+                Text("يجب تسجيل الصنف أولاً في قسم الأصناف. البيع يخصم الكمية المتاحة والشراء يضيفها.", color = Muted, fontSize = 11.sp)
                 lines.forEachIndexed { index, line ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF4F6F8)),
@@ -524,6 +533,9 @@ private fun DocumentDialog(
                     label = { Text("ملاحظات") }, minLines = 2,
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (saveError != null) {
+                    Text(saveError.orEmpty(), color = Color(0xFFB3261E), fontSize = 12.sp)
+                }
                 Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE6F2F9))) {
                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
                         Text("الإجمالي المحسوب", color = BrandBlueDark, fontWeight = FontWeight.SemiBold)
@@ -534,7 +546,7 @@ private fun DocumentDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { if (valid) onSave(party, notes, parsedLines) }, enabled = valid) { Text("حفظ المستند") }
+            TextButton(onClick = { if (valid) saveError = onSave(party, notes, parsedLines) }, enabled = valid) { Text("حفظ المستند") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
     )
