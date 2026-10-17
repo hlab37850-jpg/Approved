@@ -43,7 +43,7 @@ data class BusinessDocument(
 )
 
 class AccountantDatabase(context: Context) :
-    SQLiteOpenHelper(context, "approved_accounting.db", null, 3) {
+    SQLiteOpenHelper(context, "approved_accounting.db", null, 4) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
@@ -96,7 +96,8 @@ class AccountantDatabase(context: Context) :
                 party_name TEXT NOT NULL,
                 amount REAL NOT NULL CHECK(amount >= 0),
                 notes TEXT NOT NULL DEFAULT '',
-                created_at INTEGER NOT NULL
+                created_at INTEGER NOT NULL,
+                stock_posted INTEGER NOT NULL DEFAULT 0 CHECK(stock_posted IN (0,1))
             )""".trimIndent()
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_documents_kind_date ON documents(kind, created_at DESC)")
@@ -122,6 +123,9 @@ class AccountantDatabase(context: Context) :
             db.execSQL("UPDATE documents SET document_no = CASE WHEN kind='SALE' THEN 'SAL-' ELSE 'PUR-' END || printf('%06d', id) WHERE document_no = ''")
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_number ON documents(document_no)")
             createDocumentLinesTable(db)
+        }
+        if (oldVersion < 4 && !hasColumn(db, "documents", "stock_posted")) {
+            db.execSQL("ALTER TABLE documents ADD COLUMN stock_posted INTEGER NOT NULL DEFAULT 0")
         }
     }
 
@@ -249,9 +253,28 @@ class AccountantDatabase(context: Context) :
         })
         val total = lines.sumOf { it.quantity * it.unitPrice }
         require(total.isFinite() && total >= 0.0)
+        val grouped = lines.groupBy { it.itemName.trim().lowercase(java.util.Locale.ROOT) }
         val db = writableDatabase
         db.beginTransaction()
         try {
+            // All lines must refer to a registered inventory item. This keeps stock traceable.
+            val stockChanges = grouped.map { (_, sameNameLines) ->
+                val name = sameNameLines.first().itemName.trim()
+                val quantity = sameNameLines.sumOf { it.quantity }
+                require(quantity.isFinite() && quantity > 0.0) { "كمية الصنف غير صالحة: $name" }
+                val item = db.rawQuery(
+                    "SELECT id, quantity FROM items WHERE name=? COLLATE NOCASE ORDER BY id LIMIT 1",
+                    arrayOf(name)
+                ).use { cursor ->
+                    if (cursor.moveToFirst()) Pair(cursor.getLong(0), cursor.getDouble(1)) else null
+                } ?: throw IllegalArgumentException("الصنف «$name» غير مسجل في المخزون. أضفه أولاً من قسم الأصناف.")
+                if (kind == "SALE") {
+                    require(item.second >= quantity) {
+                        "الكمية المتاحة من «$name» هي ${item.second} فقط، والكمية المطلوبة ${quantity}."
+                    }
+                }
+                Triple(item.first, quantity, name)
+            }
             val values = ContentValues().apply {
                 put("document_no", "")
                 put("kind", kind)
@@ -259,6 +282,7 @@ class AccountantDatabase(context: Context) :
                 put("amount", total)
                 put("notes", notes.trim())
                 put("created_at", System.currentTimeMillis())
+                put("stock_posted", 0)
             }
             val id = db.insertOrThrow("documents", null, values)
             lines.forEach { line ->
@@ -271,11 +295,13 @@ class AccountantDatabase(context: Context) :
                 }
                 db.insertOrThrow("document_lines", null, lineValues)
             }
+            stockChanges.forEach { (itemId, quantity, name) ->
+                val delta = if (kind == "SALE") -quantity else quantity
+                db.execSQL("UPDATE items SET quantity=quantity+? WHERE id=?", arrayOf(delta, itemId))
+            }
             val prefix = if (kind == "SALE") "SAL-" else "PUR-"
-            db.execSQL(
-                "UPDATE documents SET document_no=? WHERE id=?",
-                arrayOf(prefix + id.toString().padStart(6, '0'), id)
-            )
+            db.execSQL("UPDATE documents SET document_no=?, stock_posted=1 WHERE id=?",
+                arrayOf(prefix + id.toString().padStart(6, '0'), id))
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
@@ -331,7 +357,44 @@ class AccountantDatabase(context: Context) :
 
     fun deleteRecord(table: String, id: Long) {
         require(table == "customers" || table == "items" || table == "documents") { "Unsupported table" }
-        writableDatabase.delete(table, "id = ?", arrayOf(id.toString()))
+        val db = writableDatabase
+        if (table != "documents") {
+            db.delete(table, "id = ?", arrayOf(id.toString()))
+            return
+        }
+        db.beginTransaction()
+        try {
+            val doc = db.rawQuery(
+                "SELECT kind, stock_posted FROM documents WHERE id=?",
+                arrayOf(id.toString())
+            ).use { cursor ->
+                if (cursor.moveToFirst()) Pair(cursor.getString(0), cursor.getInt(1) == 1) else null
+            }
+            if (doc != null && doc.second) {
+                val lines = db.rawQuery(
+                    "SELECT item_name, SUM(quantity) FROM document_lines WHERE document_id=? GROUP BY item_name COLLATE NOCASE",
+                    arrayOf(id.toString())
+                ).use { cursor ->
+                    buildList {
+                        while (cursor.moveToNext()) add(Pair(cursor.getString(0), cursor.getDouble(1)))
+                    }
+                }
+                lines.forEach { (name, quantity) ->
+                    val itemId = db.rawQuery(
+                        "SELECT id FROM items WHERE name=? COLLATE NOCASE ORDER BY id LIMIT 1",
+                        arrayOf(name)
+                    ).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null }
+                    if (itemId != null) {
+                        val delta = if (doc.first == "SALE") quantity else -quantity
+                        db.execSQL("UPDATE items SET quantity=quantity+? WHERE id=?", arrayOf(delta, itemId))
+                    }
+                }
+            }
+            db.delete("documents", "id = ?", arrayOf(id.toString()))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
     }
 
     fun companyName(): String = readableDatabase.rawQuery(
