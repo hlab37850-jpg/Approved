@@ -12,8 +12,6 @@ data class LedgerRecord(
     val quantity: Double = 0.0
 )
 
-data class DocumentLineDraft(val itemName: String, val quantity: Double, val unitPrice: Double)
-
 data class DocumentLine(
     val id: Long,
     val documentId: Long,
@@ -246,13 +244,7 @@ class AccountantDatabase(context: Context) :
     ) {
         require(kind == "SALE" || kind == "PURCHASE")
         require(partyName.isNotBlank() && lines.isNotEmpty())
-        require(lines.all {
-            it.itemName.isNotBlank() && it.quantity.isFinite() && it.quantity > 0.0 &&
-                it.unitPrice.isFinite() && it.unitPrice >= 0.0 &&
-                (it.quantity * it.unitPrice).isFinite()
-        })
-        val total = lines.sumOf { it.quantity * it.unitPrice }
-        require(total.isFinite() && total >= 0.0)
+        val total = DocumentCalculator.total(lines)
         val grouped = lines.groupBy { it.itemName.trim().lowercase(java.util.Locale.ROOT) }
         val db = writableDatabase
         db.beginTransaction()
