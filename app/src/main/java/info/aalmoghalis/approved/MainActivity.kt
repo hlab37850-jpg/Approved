@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -356,8 +358,8 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
         DocumentDialog(
             title = if (isSales) "إضافة مستند مبيعات" else "إضافة مستند مشتريات",
             onDismiss = { showAddDialog = false },
-            onSave = { party, amount, notes ->
-                database.addDocument(documentKind, party, amount, notes)
+            onSave = { party, notes, lines ->
+                database.addDocumentWithLines(documentKind, party, notes, lines)
                 refresh++
                 showAddDialog = false
             }
@@ -428,39 +430,104 @@ private fun RecordDialog(
     )
 }
 
+private data class EditableDocumentLine(
+    val itemName: String = "",
+    val quantity: String = "1",
+    val unitPrice: String = "0"
+)
+
 @Composable
 private fun DocumentDialog(
     title: String,
     onDismiss: () -> Unit,
-    onSave: (String, Double, String) -> Unit
+    onSave: (String, String, List<DocumentLineDraft>) -> Unit
 ) {
     var party by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
-    val parsedAmount = amount.trim().replace(',', '.').toDoubleOrNull()
-    val valid = party.isNotBlank() && parsedAmount != null && parsedAmount.isFinite() && parsedAmount >= 0.0
+    val lines = remember { mutableStateListOf(EditableDocumentLine()) }
+    val parsedLines = lines.mapNotNull { line ->
+        val quantity = line.quantity.trim().replace(',', '.').toDoubleOrNull()
+        val price = line.unitPrice.trim().replace(',', '.').toDoubleOrNull()
+        if (line.itemName.isNotBlank() && quantity != null && quantity.isFinite() && quantity > 0.0 &&
+            price != null && price.isFinite() && price >= 0.0 &&
+            (quantity * price).isFinite()) {
+            DocumentLineDraft(line.itemName.trim(), quantity, price)
+        } else null
+    }
+    val valid = party.isNotBlank() && parsedLines.size == lines.size && parsedLines.isNotEmpty() &&
+        parsedLines.sumOf { it.quantity * it.unitPrice }.isFinite()
+    val total = parsedLines.sumOf { it.quantity * it.unitPrice }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
                 OutlinedTextField(
                     value = party, onValueChange = { party = it },
-                    label = { Text("اسم العميل أو المورد *") }, singleLine = true
+                    label = { Text("اسم العميل أو المورد *") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
-                    value = amount, onValueChange = { amount = it },
-                    label = { Text("المبلغ (ر.ي) *") }, singleLine = true
-                )
+                Text("بنود المستند", color = Ink, fontWeight = FontWeight.SemiBold)
+                lines.forEachIndexed { index, line ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF4F6F8)),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("البند ${index + 1}", color = BrandBlueDark, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.weight(1f))
+                                if (lines.size > 1) {
+                                    TextButton(onClick = { lines.removeAt(index) }) { Text("حذف البند") }
+                                }
+                            }
+                            OutlinedTextField(
+                                value = line.itemName,
+                                onValueChange = { lines[index] = lines[index].copy(itemName = it) },
+                                label = { Text("اسم الصنف *") }, singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = line.quantity,
+                                    onValueChange = { lines[index] = lines[index].copy(quantity = it) },
+                                    label = { Text("الكمية *") }, singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedTextField(
+                                    value = line.unitPrice,
+                                    onValueChange = { lines[index] = lines[index].copy(unitPrice = it) },
+                                    label = { Text("سعر الوحدة *") }, singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+                TextButton(onClick = { lines.add(EditableDocumentLine()) }) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Text("إضافة بند آخر")
+                }
                 OutlinedTextField(
                     value = notes, onValueChange = { notes = it },
-                    label = { Text("ملاحظات") }, minLines = 2
+                    label = { Text("ملاحظات") }, minLines = 2,
+                    modifier = Modifier.fillMaxWidth()
                 )
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE6F2F9))) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                        Text("الإجمالي المحسوب", color = BrandBlueDark, fontWeight = FontWeight.SemiBold)
+                        Text(String.format(Locale.US, "%,.2f ر.ي", total), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("يُحسب من مجموع الكمية × سعر الوحدة لكل بند.", color = Muted, fontSize = 11.sp)
+                    }
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { if (valid) onSave(party, parsedAmount!!, notes) }, enabled = valid) { Text("حفظ") }
+            TextButton(onClick = { if (valid) onSave(party, notes, parsedLines) }, enabled = valid) { Text("حفظ المستند") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
     )
