@@ -24,13 +24,14 @@ Reference: https://github.com/hlab37850-jpg/almahaseb-pro-apk-analysis
 - Empty states explain missing data; the app does not seed sample business records.
 
 ## Important limits
-- The document-lines table exists in the schema, but line-item entry and invoice total calculation are not yet connected to the UI. Sales/purchase records are currently registers only. They do not generate journal entries, update customer/vendor balances, deduct/add stock, or represent a complete tax invoice workflow.
+- Sales and purchase entry now supports multiple line items with item name, quantity and unit price; the total is calculated from the lines and saved with them in one SQLite transaction. Saved line details appear in each document register.
+- These documents still do not post double-entry journal entries or update stock/customer/vendor balances, so they are not yet a complete accounting workflow. They do not generate journal entries, update customer/vendor balances, deduct/add stock, or represent a complete tax invoice workflow.
 - General ledger, accounts tree, customer statements, profit calculation, backups, barcode, printing, imports and all source navigation remain unfinished. The reports screen is a real summary of document registers, not a complete financial reporting system.
 - The Compose screen is not yet a pixel-perfect reconstruction of every source screen; no matching screenshot set was supplied for pixel comparison.
 
 ## Next work
 1. Verify the latest GitHub Actions build and APK artifact.
 2. Map source navigation and app-owned layouts/screens systematically.
-3. Implement transaction line items, document numbering, totals and validation.
+3. Add automated tests for document-line calculations, numbering and database upgrades before extending posting rules.
 4. Implement accounting posting rules only after defining and testing the double-entry model.
 5. Add tests for database migration, record persistence and financial validation.
