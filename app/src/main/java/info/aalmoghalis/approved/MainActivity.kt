@@ -376,6 +376,7 @@ private fun ModuleDetail(module: Module, database: AccountantDatabase, onBack: (
     if (showAddDialog && (isSales || isPurchases)) {
         DocumentDialog(
             title = if (isSales) "إضافة مستند مبيعات" else "إضافة مستند مشتريات",
+            itemNames = database.listItems().map { it.name },
             onDismiss = { showAddDialog = false },
             onSave = { party, notes, lines ->
                 val failure = runCatching {
@@ -465,6 +466,7 @@ private data class EditableDocumentLine(
 @Composable
 private fun DocumentDialog(
     title: String,
+    itemNames: List<String>,
     onDismiss: () -> Unit,
     onSave: (String, String, List<DocumentLineDraft>) -> String?
 ) {
@@ -513,12 +515,42 @@ private fun DocumentDialog(
                                     TextButton(onClick = { lines.removeAt(index) }) { Text("حذف البند") }
                                 }
                             }
-                            OutlinedTextField(
-                                value = line.itemName,
-                                onValueChange = { lines[index] = lines[index].copy(itemName = it) },
-                                label = { Text("اسم الصنف *") }, singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            var itemMenuOpen by remember(index) { mutableStateOf(false) }
+                            Box(Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = line.itemName,
+                                    onValueChange = {
+                                        lines[index] = lines[index].copy(itemName = it)
+                                        itemMenuOpen = true
+                                    },
+                                    label = { Text("اسم الصنف *") },
+                                    singleLine = true,
+                                    trailingIcon = {
+                                        IconButton(onClick = { itemMenuOpen = !itemMenuOpen }) {
+                                            Icon(Icons.Filled.ArrowDropDown, contentDescription = "اختيار صنف مسجل")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                DropdownMenu(
+                                    expanded = itemMenuOpen && itemNames.isNotEmpty(),
+                                    onDismissRequest = { itemMenuOpen = false },
+                                    modifier = Modifier.heightIn(max = 240.dp)
+                                ) {
+                                    itemNames
+                                        .filter { it.contains(line.itemName, ignoreCase = true) }
+                                        .take(8)
+                                        .forEach { itemName ->
+                                            DropdownMenuItem(
+                                                text = { Text(itemName) },
+                                                onClick = {
+                                                    lines[index] = lines[index].copy(itemName = itemName)
+                                                    itemMenuOpen = false
+                                                }
+                                            )
+                                        }
+                                }
+                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedTextField(
                                     value = line.quantity,
